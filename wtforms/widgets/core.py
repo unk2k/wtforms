@@ -73,7 +73,20 @@ class HTMLString(text_type):
         return self
 
 
-class ListWidget(object):
+class BaseWidget(object):
+    def __call__(self, field, **kw):
+        if not field.template:
+            raise Exception('Template for %s is\'t provide' % self)
+        return HTMLString(field._form.env.template.render(
+            field.template,
+            form=field,
+            widget=self,
+            env=field._form.env,
+            field=field,
+            kwargs=kw))
+
+
+class ListWidget(BaseWidget):
     """
     Renders a list of fields as a `ul` or `ol` list.
 
@@ -90,19 +103,19 @@ class ListWidget(object):
         self.html_tag = html_tag
         self.prefix_label = prefix_label
 
-    def __call__(self, field, **kwargs):
-        kwargs.setdefault('id', field.id)
-        html = ['<%s %s>' % (self.html_tag, html_params(**kwargs))]
-        for subfield in field:
-            if self.prefix_label:
-                html.append('<li>%s %s</li>' % (subfield.label, subfield()))
-            else:
-                html.append('<li>%s %s</li>' % (subfield(), subfield.label))
-        html.append('</%s>' % self.html_tag)
-        return HTMLString(''.join(html))
+    # def __call__(self, field, **kwargs):
+    #     kwargs.setdefault('id', field.id)
+    #     html = ['<%s %s>' % (self.html_tag, html_params(**kwargs))]
+    #     for subfield in field:
+    #         if self.prefix_label:
+    #             html.append('<li>%s %s</li>' % (subfield.label, subfield()))
+    #         else:
+    #             html.append('<li>%s %s</li>' % (subfield(), subfield.label))
+    #     html.append('</%s>' % self.html_tag)
+    #     return HTMLString(''.join(html))
 
 
-class TableWidget(object):
+class TableWidget(BaseWidget):
     """
     Renders a list of fields as a set of table rows with th/td pairs.
 
@@ -116,26 +129,26 @@ class TableWidget(object):
     def __init__(self, with_table_tag=True):
         self.with_table_tag = with_table_tag
 
-    def __call__(self, field, **kwargs):
-        html = []
-        if self.with_table_tag:
-            kwargs.setdefault('id', field.id)
-            html.append('<table %s>' % html_params(**kwargs))
-        hidden = ''
-        for subfield in field:
-            if subfield.type == 'HiddenField':
-                hidden += text_type(subfield)
-            else:
-                html.append('<tr><th>%s</th><td>%s%s</td></tr>' % (text_type(subfield.label), hidden, text_type(subfield)))
-                hidden = ''
-        if self.with_table_tag:
-            html.append('</table>')
-        if hidden:
-            html.append(hidden)
-        return HTMLString(''.join(html))
+    # def __call__(self, field, **kwargs):
+    #     html = []
+    #     if self.with_table_tag:
+    #         kwargs.setdefault('id', field.id)
+    #         html.append('<table %s>' % html_params(**kwargs))
+    #     hidden = ''
+    #     for subfield in field:
+    #         if subfield.type == 'HiddenField':
+    #             hidden += text_type(subfield)
+    #         else:
+    #             html.append('<tr><th>%s</th><td>%s%s</td></tr>' % (text_type(subfield.label), hidden, text_type(subfield)))
+    #             hidden = ''
+    #     if self.with_table_tag:
+    #         html.append('</table>')
+    #     if hidden:
+    #         html.append(hidden)
+    #     return HTMLString(''.join(html))
 
 
-class Input(object):
+class Input(BaseWidget):
     """
     Render a basic ``<input>`` field.
 
@@ -150,12 +163,12 @@ class Input(object):
         if input_type is not None:
             self.input_type = input_type
 
-    def __call__(self, field, **kwargs):
-        kwargs.setdefault('id', field.id)
-        kwargs.setdefault('type', self.input_type)
-        if 'value' not in kwargs:
-            kwargs['value'] = field._value()
-        return HTMLString('<input %s>' % self.html_params(name=field.name, **kwargs))
+    # def __call__(self, field, **kwargs):
+    #     kwargs.setdefault('id', field.id)
+    #     kwargs.setdefault('type', self.input_type)
+    #     if 'value' not in kwargs:
+    #         kwargs['value'] = field._value()
+    #     return HTMLString('<input %s>' % self.html_params(name=field.name, **kwargs))
 
 
 class TextInput(Input):
@@ -178,10 +191,11 @@ class PasswordInput(Input):
     def __init__(self, hide_value=True):
         self.hide_value = hide_value
 
-    def __call__(self, field, **kwargs):
-        if self.hide_value:
-            kwargs['value'] = ''
-        return super(PasswordInput, self).__call__(field, **kwargs)
+    # XXX clean value
+    # def __call__(self, field, **kwargs):
+    #     if self.hide_value:
+    #         kwargs['value'] = ''
+    #     return super(PasswordInput, self).__call__(field, **kwargs)
 
 
 class HiddenInput(Input):
@@ -199,10 +213,11 @@ class CheckboxInput(Input):
     """
     input_type = 'checkbox'
 
-    def __call__(self, field, **kwargs):
-        if getattr(field, 'checked', field.data):
-            kwargs['checked'] = True
-        return super(CheckboxInput, self).__call__(field, **kwargs)
+    # XXX set checked
+    # def __call__(self, field, **kwargs):
+    #     if getattr(field, 'checked', field.data):
+    #         kwargs['checked'] = True
+    #     return super(CheckboxInput, self).__call__(field, **kwargs)
 
 
 class RadioInput(Input):
@@ -214,20 +229,21 @@ class RadioInput(Input):
     """
     input_type = 'radio'
 
-    def __call__(self, field, **kwargs):
-        if field.checked:
-            kwargs['checked'] = True
-        return super(RadioInput, self).__call__(field, **kwargs)
+    # XXX set checked
+    # def __call__(self, field, **kwargs):
+    #     if field.checked:
+    #         kwargs['checked'] = True
+    #     return super(RadioInput, self).__call__(field, **kwargs)
 
 
-class FileInput(object):
+class FileInput(BaseWidget):
     """
     Renders a file input chooser field.
     """
-
-    def __call__(self, field, **kwargs):
-        kwargs.setdefault('id', field.id)
-        return HTMLString('<input %s>' % html_params(name=field.name, type='file', **kwargs))
+    pass
+    # def __call__(self, field, **kwargs):
+    #     kwargs.setdefault('id', field.id)
+    #     return HTMLString('<input %s>' % html_params(name=field.name, type='file', **kwargs))
 
 
 class SubmitInput(Input):
@@ -244,21 +260,22 @@ class SubmitInput(Input):
         return super(SubmitInput, self).__call__(field, **kwargs)
 
 
-class TextArea(object):
+class TextArea(BaseWidget):
     """
     Renders a multi-line text area.
 
     `rows` and `cols` ought to be passed as keyword args when rendering.
     """
-    def __call__(self, field, **kwargs):
-        kwargs.setdefault('id', field.id)
-        return HTMLString('<textarea %s>%s</textarea>' % (
-            html_params(name=field.name, **kwargs),
-            escape(text_type(field._value()), quote=False)
-        ))
+    pass
+    # def __call__(self, field, **kwargs):
+    #     kwargs.setdefault('id', field.id)
+    #     return HTMLString('<textarea %s>%s</textarea>' % (
+    #         html_params(name=field.name, **kwargs),
+    #         escape(text_type(field._value()), quote=False)
+    #     ))
 
 
-class Select(object):
+class Select(BaseWidget):
     """
     Renders a select field.
 
@@ -272,15 +289,15 @@ class Select(object):
     def __init__(self, multiple=False):
         self.multiple = multiple
 
-    def __call__(self, field, **kwargs):
-        kwargs.setdefault('id', field.id)
-        if self.multiple:
-            kwargs['multiple'] = True
-        html = ['<select %s>' % html_params(name=field.name, **kwargs)]
-        for val, label, selected in field.iter_choices():
-            html.append(self.render_option(val, label, selected))
-        html.append('</select>')
-        return HTMLString(''.join(html))
+    # def __call__(self, field, **kwargs):
+    #     kwargs.setdefault('id', field.id)
+    #     if self.multiple:
+    #         kwargs['multiple'] = True
+    #     html = ['<select %s>' % html_params(name=field.name, **kwargs)]
+    #     for val, label, selected in field.iter_choices():
+    #         html.append(self.render_option(val, label, selected))
+    #     html.append('</select>')
+    #     return HTMLString(''.join(html))
 
     @classmethod
     def render_option(cls, value, label, selected, **kwargs):
@@ -294,12 +311,13 @@ class Select(object):
         return HTMLString('<option %s>%s</option>' % (html_params(**options), escape(text_type(label), quote=False)))
 
 
-class Option(object):
+class Option(BaseWidget):
     """
     Renders the individual option from a select field.
 
     This is just a convenience for various custom rendering situations, and an
     option by itself does not constitute an entire field.
     """
-    def __call__(self, field, **kwargs):
-        return Select.render_option(field._value(), field.label.text, field.checked, **kwargs)
+    pass
+    # def __call__(self, field, **kwargs):
+    #     return Select.render_option(field._value(), field.label.text, field.checked, **kwargs)

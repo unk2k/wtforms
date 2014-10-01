@@ -30,6 +30,7 @@ class Field(object):
     _formfield = True
     _translations = DummyTranslations()
     do_not_call_in_templates = True  # Allow Django 1.4 traversal
+    template = None
 
     def __new__(cls, *args, **kwargs):
         if '_form' in kwargs and '_name' in kwargs:
@@ -38,9 +39,9 @@ class Field(object):
             return UnboundField(cls, *args, **kwargs)
 
     def __init__(self, label=None, validators=None, filters=tuple(),
-                 description='', id=None, default=None, widget=None,
-                 _form=None, _name=None, _prefix='', _translations=None,
-                 _meta=None):
+                 description='', template=None, id=None, default=None,
+                 widget=None, _form=None, _name=None, _prefix='',
+                 _translations=None, _meta=None):
         """
         Construct a new field.
 
@@ -88,9 +89,11 @@ class Field(object):
             self.meta = _meta
         elif _form is not None:
             self.meta = _form.meta
+            self._form = _form
         else:
             raise TypeError("Must provide one of _form or _meta")
 
+        self.template = template or self.template
         self.default = default
         self.description = description
         self.filters = filters
@@ -343,7 +346,12 @@ class UnboundField(object):
             _translations=translations,
             **kwargs
         )
-        return self.field_class(*self.args, **kw)
+        try:
+            return self.field_class(*self.args, **kw)
+        except:
+            print self.args, self, kw
+            raise
+
 
     def __repr__(self):
         return '<UnboundField(%s, %r, %r)>' % (self.field_class.__name__, self.args, self.kwargs)
@@ -400,6 +408,7 @@ class Label(object):
 
 class SelectFieldBase(Field):
     option_widget = widgets.Option()
+    template = 'wtforms/option'
 
     """
     Base class for fields which can be iterated to produce options.
@@ -437,6 +446,7 @@ class SelectFieldBase(Field):
 
 class SelectField(SelectFieldBase):
     widget = widgets.Select()
+    template = 'wtforms/select'
 
     def __init__(self, label=None, validators=None, coerce=text_type, choices=None, **kwargs):
         super(SelectField, self).__init__(label, validators, **kwargs)
@@ -475,6 +485,7 @@ class SelectMultipleField(SelectField):
     attribute to the select field when rendering.
     """
     widget = widgets.Select(multiple=True)
+    template = 'wtforms/select'
 
     def iter_choices(self):
         for value, label in self.choices:
@@ -509,6 +520,7 @@ class RadioField(SelectField):
     well) in order to allow custom rendering of the individual radio fields.
     """
     widget = widgets.ListWidget(prefix_label=False)
+    template = 'wtforms/radio'
     option_widget = widgets.RadioInput()
 
 
@@ -518,6 +530,7 @@ class StringField(Field):
     represents an ``<input type="text">``.
     """
     widget = widgets.TextInput()
+    template = 'wtforms/textinput'
 
     def process_formdata(self, valuelist):
         if valuelist:
@@ -563,6 +576,7 @@ class IntegerField(Field):
     is ignored and will not be accepted as a value.
     """
     widget = widgets.TextInput()
+    template = 'wtforms/textinput'
 
     def __init__(self, label=None, validators=None, **kwargs):
         super(IntegerField, self).__init__(label, validators, **kwargs)
@@ -603,6 +617,7 @@ class DecimalField(LocaleAwareNumberField):
         format for the locale.
     """
     widget = widgets.TextInput()
+    template = 'wtforms/textinput'
 
     def __init__(self, label=None, validators=None, places=unset_value, rounding=None, **kwargs):
         super(DecimalField, self).__init__(label, validators, **kwargs)
@@ -656,6 +671,7 @@ class FloatField(Field):
     is ignored and will not be accepted as a value.
     """
     widget = widgets.TextInput()
+    template = 'wtforms/textinput'
 
     def __init__(self, label=None, validators=None, **kwargs):
         super(FloatField, self).__init__(label, validators, **kwargs)
@@ -687,6 +703,7 @@ class BooleanField(Field):
         ``('false', '')``
     """
     widget = widgets.CheckboxInput()
+    template = 'wtforms/checkbox'
     false_values = ('false', '')
 
     def __init__(self, label=None, validators=None, false_values=None, **kwargs):
@@ -715,6 +732,7 @@ class DateTimeField(Field):
     A text field which stores a `datetime.datetime` matching a format.
     """
     widget = widgets.TextInput()
+    template = 'wtforms/textinput'
 
     def __init__(self, label=None, validators=None, format='%Y-%m-%d %H:%M:%S', **kwargs):
         super(DateTimeField, self).__init__(label, validators, **kwargs)
@@ -764,8 +782,11 @@ class FormField(Field):
         prefix to enclosed fields. The default is fine for most uses.
     """
     widget = widgets.TableWidget()
+    template = 'wtforms/formfield'
 
     def __init__(self, form_class, label=None, validators=None, separator='-', **kwargs):
+        print 'KWARGS:', kwargs
+        print 'FORMCLS:', form_class
         super(FormField, self).__init__(label, validators, **kwargs)
         self.form_class = form_class
         self.separator = separator
@@ -787,8 +808,10 @@ class FormField(Field):
 
         prefix = self.name + self.separator
         if isinstance(data, dict):
+            # self.form = self.form_class(env=self._form.env, formdata=formdata, prefix=prefix, **data)
             self.form = self.form_class(formdata=formdata, prefix=prefix, **data)
         else:
+            # self.form = self.form_class(env=self._form.env, formdata=formdata, obj=data, prefix=prefix)
             self.form = self.form_class(formdata=formdata, obj=data, prefix=prefix)
 
     def validate(self, form, extra_validators=tuple()):
@@ -812,8 +835,13 @@ class FormField(Field):
     def __getitem__(self, name):
         return self.form[name]
 
-    def __getattr__(self, name):
-        return getattr(self.form, name)
+    # def __getattr__(self, name):
+        # try:
+        # return getattr(self.form, name)
+        # except RuntimeError:
+        #     print self, name
+        #     raise
+
 
     @property
     def data(self):
@@ -843,6 +871,7 @@ class FieldList(Field):
         formdata.
     """
     widget = widgets.ListWidget()
+    template = 'wtforms/fieldlist'
 
     def __init__(self, unbound_field, label=None, validators=None, min_entries=0,
                  max_entries=None, default=tuple(), **kwargs):

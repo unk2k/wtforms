@@ -19,8 +19,10 @@ class BaseForm(object):
     validation, and data and error proxying.
     """
 
-    def __init__(self, fields, prefix='', meta=DefaultMeta()):
+    def __init__(self, env, fields, prefix='', meta=DefaultMeta()):
         """
+        :param env:
+            App environment
         :param fields:
             A dict or sequence of 2-tuples of partially-constructed fields.
         :param prefix:
@@ -33,6 +35,7 @@ class BaseForm(object):
         if prefix and prefix[-1] not in '-_;:/.':
             prefix += '-'
 
+        self.env = env
         self.meta = meta
         self._prefix = prefix
         self._errors = None
@@ -241,8 +244,10 @@ class Form(with_metaclass(FormMeta, BaseForm)):
     """
     Meta = DefaultMeta
 
-    def __init__(self, formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs):
+    def __init__(self, env=None, formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs):
         """
+        :param env:
+            app environment
         :param formdata:
             Used to pass data coming from the enduser, usually `request.POST` or
             equivalent. formdata should be some sort of request-data wrapper which
@@ -266,10 +271,11 @@ class Form(with_metaclass(FormMeta, BaseForm)):
             an attribute named the same as a field, form will assign the value
             of a matching keyword argument to the field, if one exists.
         """
+        self.env = env
         meta_obj = self._wtforms_meta()
         if meta is not None and isinstance(meta, dict):
             meta_obj.update_values(meta)
-        super(Form, self).__init__(self._unbound_fields, meta=meta_obj, prefix=prefix)
+        super(Form, self).__init__(self.env, self._unbound_fields, meta=meta_obj, prefix=prefix)
 
         for name, field in iteritems(self._fields):
             # Set all the fields to attributes so that they obscure the class
